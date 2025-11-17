@@ -48,18 +48,6 @@ class UMAPReducer:
             raise ReducerError(f"Error al crear el reductor UMAP: {str(e)}") from e
     
     def fit_transform(self, X: np.ndarray) -> np.ndarray:
-        """
-        Aplica UMAP a los datos.
-        
-        Args:
-            X: Array numpy con los datos (n_samples, n_features)
-        
-        Returns:
-            Array numpy con el embedding (n_samples, n_components)
-        
-        Raises:
-            ReducerError: Si hay un error al aplicar UMAP
-        """
         if self.reducer is None:
             raise ReducerError("Debes crear un reductor primero usando create_reducer()")
         
@@ -89,19 +77,7 @@ class UMAPReducer:
         target: np.ndarray = None,
         target_names: np.ndarray = None
     ) -> pd.DataFrame:
-        """
-        Convierte el embedding a un DataFrame de pandas.
-        
-        Args:
-            target: Array con las etiquetas (opcional)
-            target_names: Array con los nombres de las clases (opcional)
-        
-        Returns:
-            DataFrame con el embedding y las etiquetas si están disponibles
-        
-        Raises:
-            ReducerError: Si hay un error al crear el DataFrame
-        """
+
         if self.embedding is None:
             raise ReducerError("No hay embedding disponible. Ejecuta fit_transform() primero.")
         
@@ -132,22 +108,9 @@ class UMAPReducer:
             raise ReducerError(f"Error al crear el DataFrame: {str(e)}") from e
     
     def get_params(self) -> Dict[str, Any]:
-        """Retorna los parámetros utilizados."""
         return self.params.copy()
     
     def get_reduction_stats(self, original_dim: int) -> Dict[str, Any]:
-        """
-        Calcula estadísticas de la reducción.
-        
-        Args:
-            original_dim: Dimensionalidad original
-        
-        Returns:
-            Diccionario con estadísticas
-        
-        Raises:
-            ReducerError: Si hay un error al calcular las estadísticas
-        """
         if self.embedding is None:
             raise ReducerError("No hay embedding disponible. Ejecuta fit_transform() primero.")
         
