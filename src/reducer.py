@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 import umap
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
+from .exceptions import ReducerError
 
 
 class UMAPReducer:
@@ -23,27 +24,59 @@ class UMAPReducer:
     ) -> umap.UMAP:
 
         if n_components not in [2, 3]:
-            raise ValueError("n_components debe ser 2 o 3")
+            raise ReducerError("n_components debe ser 2 o 3")
         
-        self.params = {
-            'n_components': n_components,
-            'n_neighbors': n_neighbors,
-            'min_dist': min_dist,
-            'metric': metric,
-            'random_state': random_state,
-            **kwargs
-        }
+        if n_neighbors < 2:
+            raise ReducerError("n_neighbors debe ser al menos 2")
         
-        self.reducer = umap.UMAP(**self.params)
-        return self.reducer
+        if not (0.0 <= min_dist <= 1.0):
+            raise ReducerError("min_dist debe estar entre 0.0 y 1.0")
+        
+        try:
+            self.params = {
+                'n_components': n_components,
+                'n_neighbors': n_neighbors,
+                'min_dist': min_dist,
+                'metric': metric,
+                'random_state': random_state,
+                **kwargs
+            }
+            
+            self.reducer = umap.UMAP(**self.params)
+            return self.reducer
+        except Exception as e:
+            raise ReducerError(f"Error al crear el reductor UMAP: {str(e)}") from e
     
     def fit_transform(self, X: np.ndarray) -> np.ndarray:
-
-        if self.reducer is None:
-            raise ValueError("Debes crear un reductor primero usando create_reducer()")
+        """
+        Aplica UMAP a los datos.
         
-        self.embedding = self.reducer.fit_transform(X)
-        return self.embedding
+        Args:
+            X: Array numpy con los datos (n_samples, n_features)
+        
+        Returns:
+            Array numpy con el embedding (n_samples, n_components)
+        
+        Raises:
+            ReducerError: Si hay un error al aplicar UMAP
+        """
+        if self.reducer is None:
+            raise ReducerError("Debes crear un reductor primero usando create_reducer()")
+        
+        if not isinstance(X, np.ndarray):
+            raise ReducerError("X debe ser un array numpy")
+        
+        if X.size == 0:
+            raise ReducerError("El array de datos está vacío")
+        
+        if len(X.shape) != 2:
+            raise ReducerError("X debe ser un array 2D (n_samples, n_features)")
+        
+        try:
+            self.embedding = self.reducer.fit_transform(X)
+            return self.embedding
+        except Exception as e:
+            raise ReducerError(f"Error al aplicar UMAP: {str(e)}") from e
     
     def transform(self, X: np.ndarray) -> np.ndarray:
         if self.reducer is None:
@@ -56,40 +89,81 @@ class UMAPReducer:
         target: np.ndarray = None,
         target_names: np.ndarray = None
     ) -> pd.DataFrame:
-
+        """
+        Convierte el embedding a un DataFrame de pandas.
+        
+        Args:
+            target: Array con las etiquetas (opcional)
+            target_names: Array con los nombres de las clases (opcional)
+        
+        Returns:
+            DataFrame con el embedding y las etiquetas si están disponibles
+        
+        Raises:
+            ReducerError: Si hay un error al crear el DataFrame
+        """
         if self.embedding is None:
-            raise ValueError("No hay embedding disponible. Ejecuta fit_transform() primero.")
+            raise ReducerError("No hay embedding disponible. Ejecuta fit_transform() primero.")
         
-        n_components = self.embedding.shape[1]
-        columns = [f'UMAP {i+1}' for i in range(n_components)]
-        
-        embedding_df = pd.DataFrame(self.embedding, columns=columns)
-        
-        if target is not None:
-            if target_names is not None:
-                embedding_df['Clase'] = [target_names[i] if i < len(target_names) else str(i) 
-                                        for i in target]
-            else:
-                embedding_df['Clase'] = target
-        
-        return embedding_df
+        try:
+            n_components = self.embedding.shape[1]
+            columns = [f'UMAP {i+1}' for i in range(n_components)]
+            
+            embedding_df = pd.DataFrame(self.embedding, columns=columns)
+            
+            if target is not None:
+                if len(target) != len(embedding_df):
+                    raise ReducerError(
+                        f"El tamaño de target ({len(target)}) no coincide con el número de muestras ({len(embedding_df)})"
+                    )
+                
+                if target_names is not None:
+                    embedding_df['Clase'] = [
+                        target_names[i] if i < len(target_names) else str(i) 
+                        for i in target
+                    ]
+                else:
+                    embedding_df['Clase'] = target
+            
+            return embedding_df
+        except Exception as e:
+            if isinstance(e, ReducerError):
+                raise
+            raise ReducerError(f"Error al crear el DataFrame: {str(e)}") from e
     
     def get_params(self) -> Dict[str, Any]:
         """Retorna los parámetros utilizados."""
         return self.params.copy()
     
     def get_reduction_stats(self, original_dim: int) -> Dict[str, Any]:
-
+        """
+        Calcula estadísticas de la reducción.
+        
+        Args:
+            original_dim: Dimensionalidad original
+        
+        Returns:
+            Diccionario con estadísticas
+        
+        Raises:
+            ReducerError: Si hay un error al calcular las estadísticas
+        """
         if self.embedding is None:
-            return {}
+            raise ReducerError("No hay embedding disponible. Ejecuta fit_transform() primero.")
         
-        reduced_dim = self.embedding.shape[1]
-        reduction_pct = ((original_dim - reduced_dim) / original_dim) * 100
+        if original_dim <= 0:
+            raise ReducerError("original_dim debe ser mayor que 0")
         
-        return {
-            'original_dim': original_dim,
-            'reduced_dim': reduced_dim,
-            'reduction_percentage': reduction_pct,
-            'n_samples': self.embedding.shape[0]
-        }
+        try:
+            reduced_dim = self.embedding.shape[1]
+            reduction_pct = ((original_dim - reduced_dim) / original_dim) * 100
+            
+            return {
+                'original_dim': original_dim,
+                'reduced_dim': reduced_dim,
+                'reduction_percentage': reduction_pct,
+                'n_samples': self.embedding.shape[0]
+            }
+        except Exception as e:
+            raise ReducerError(f"Error al calcular estadísticas: {str(e)}") from e
 

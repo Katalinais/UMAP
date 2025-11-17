@@ -30,8 +30,20 @@ class UMAPVisualizer:
         Returns:
             Figura de Plotly
         """
-        x_col = [col for col in embedding_df.columns if '1' in col and title_prefix.upper() in col.upper()][0]
-        y_col = [col for col in embedding_df.columns if '2' in col and title_prefix.upper() in col.upper()][0]
+        if not isinstance(embedding_df, pd.DataFrame):
+            raise VisualizationError("embedding_df debe ser un DataFrame de pandas")
+        
+        if embedding_df.empty:
+            raise VisualizationError("El DataFrame de embedding está vacío")
+        
+        try:
+            x_col = [col for col in embedding_df.columns if '1' in col and title_prefix.upper() in col.upper()][0]
+            y_col = [col for col in embedding_df.columns if '2' in col and title_prefix.upper() in col.upper()][0]
+        except IndexError:
+            raise VisualizationError(
+                f"No se encontraron columnas apropiadas en el DataFrame. "
+                f"Columnas disponibles: {list(embedding_df.columns)}"
+            )
         
         if color_column and color_column in embedding_df.columns:
             fig = px.scatter(
@@ -77,9 +89,21 @@ class UMAPVisualizer:
         Returns:
             Figura de Plotly
         """
-        x_col = [col for col in embedding_df.columns if '1' in col and title_prefix.upper() in col.upper()][0]
-        y_col = [col for col in embedding_df.columns if '2' in col and title_prefix.upper() in col.upper()][0]
-        z_col = [col for col in embedding_df.columns if '3' in col and title_prefix.upper() in col.upper()][0]
+        if not isinstance(embedding_df, pd.DataFrame):
+            raise VisualizationError("embedding_df debe ser un DataFrame de pandas")
+        
+        if embedding_df.empty:
+            raise VisualizationError("El DataFrame de embedding está vacío")
+        
+        try:
+            x_col = [col for col in embedding_df.columns if '1' in col and title_prefix.upper() in col.upper()][0]
+            y_col = [col for col in embedding_df.columns if '2' in col and title_prefix.upper() in col.upper()][0]
+            z_col = [col for col in embedding_df.columns if '3' in col and title_prefix.upper() in col.upper()][0]
+        except IndexError:
+            raise VisualizationError(
+                f"No se encontraron columnas apropiadas en el DataFrame. "
+                f"Columnas disponibles: {list(embedding_df.columns)}"
+            )
         
         if color_column and color_column in embedding_df.columns:
             fig = px.scatter_3d(
@@ -151,19 +175,39 @@ class UMAPVisualizer:
         
         Returns:
             Figura de Plotly
+        
+        Raises:
+            VisualizationError: Si hay un error al crear el gráfico
         """
-        class_counts = pd.Series(target).value_counts().sort_index()
+        if not isinstance(target, np.ndarray):
+            raise VisualizationError("target debe ser un array numpy")
         
-        if target_names is not None:
-            class_counts.index = [target_names[i] if i < len(target_names) else str(i) 
-                                 for i in class_counts.index]
+        if len(target) == 0:
+            raise VisualizationError("El array target está vacío")
         
-        fig = px.bar(
-            x=class_counts.index.astype(str),
-            y=class_counts.values,
-            title="Distribución de clases",
-            labels={'x': 'Clase', 'y': 'Frecuencia'}
-        )
-        
-        return fig
+        try:
+            class_counts = pd.Series(target).value_counts().sort_index()
+            
+            if target_names is not None:
+                if len(target_names) < len(class_counts):
+                    raise VisualizationError(
+                        f"target_names tiene {len(target_names)} elementos pero hay {len(class_counts)} clases únicas"
+                    )
+                class_counts.index = [
+                    target_names[i] if i < len(target_names) else str(i) 
+                    for i in class_counts.index
+                ]
+            
+            fig = px.bar(
+                x=class_counts.index.astype(str),
+                y=class_counts.values,
+                title="Distribución de clases",
+                labels={'x': 'Clase', 'y': 'Frecuencia'}
+            )
+            
+            return fig
+        except Exception as e:
+            if isinstance(e, VisualizationError):
+                raise
+            raise VisualizationError(f"Error al crear el gráfico de distribución: {str(e)}") from e
 
